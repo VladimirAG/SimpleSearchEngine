@@ -82,7 +82,7 @@ public:
     }
 
     vector<Document> FindTopDocuments(const string& raw_query) const {
-        const set<string> query_words = ParseQuery(raw_query);
+        const Query query_words = ParseQuery(raw_query);
         auto matched_documents = FindAllDocuments(query_words);
 
         sort(matched_documents.begin(), matched_documents.end(),
@@ -99,6 +99,11 @@ private:
     struct DocumentContent {
         int id = 0;
         vector<string> words;
+    };
+    
+    struct Query {
+        set<string> plusWords;
+        set<string> minusWords;
     };
 
     vector<DocumentContent> documents_;
@@ -119,15 +124,16 @@ private:
         return words;
     }
 
-    set<string> ParseQuery(const string& text) const {
-        set<string> query_words;
+    Query ParseQuery(const string& text) const {
+        Query query_words;
         for (const string& word : SplitIntoWordsNoStop(text)) {
-            query_words.insert(word);
+            word[0] == '-' ? query_words.minusWords.insert(word.substr(1)) 
+                           : query_words.plusWords.insert(word);
         }
         return query_words;
     }
 
-    vector<Document> FindAllDocuments(const set<string>& query_words) const {
+    vector<Document> FindAllDocuments(const Query& query_words) const {
         vector<Document> matched_documents;
         for (const auto& document : documents_) {
             const int relevance = MatchDocument(document, query_words);
@@ -138,8 +144,8 @@ private:
         return matched_documents;
     }
 
-    static int MatchDocument(const DocumentContent& content, const set<string>& query_words) {
-        if (query_words.empty()) {
+    static int MatchDocument(const DocumentContent& content, const Query& query_words) {
+        if (query_words.minusWords.empty() && query_words.plusWords.empty()) {
             return 0;
         }
         set<string> matched_words;
@@ -147,8 +153,10 @@ private:
             if (matched_words.count(word) != 0) {
                 continue;
             }
-            if (query_words.count(word) != 0) {
-                if (query_words.count("-"s + word) != 0) return 0;
+            if (query_words.minusWords.count(word) != 0) {
+                return 0;
+            }
+            if (query_words.plusWords.count(word) != 0) {
                 matched_words.insert(word);
             }
         }
